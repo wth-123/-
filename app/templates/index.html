@@ -59,7 +59,7 @@
     function download(){if(batch)window.location=`/batches/${batch}/export`;else statusLine.textContent='请先上传资料。';}
   </script>
   <section id="access-gate" class="access-gate" aria-label="访问验证">
-    <form class="access-card" onsubmit="unlock(event)">
+    <form id="access-form" class="access-card">
       <span class="kicker">PRIVATE ARCHIVE</span><h2>输入访问密码</h2><p>密码仅保存在当前浏览器中，7 天后自动失效。</p>
       <label for="access-password">共享访问密码</label><input id="access-password" type="password" autocomplete="current-password" required>
       <button class="primary-action" type="submit">进入审核台</button><p id="access-error" class="access-error" role="alert"></p>
@@ -69,10 +69,11 @@
   <script>
     const ARCHIVE_API_BASE=(window.API_BASE||'').replace(/\/$/,'');
     const ARCHIVE_ACCESS_KEY='archiveAccessPassword', ARCHIVE_EXPIRY_KEY='archiveAccessPasswordExpiry';let transientAccessPassword='';
-    const archiveGate=document.querySelector('#access-gate'), archiveError=document.querySelector('#access-error');
+    const archiveGate=document.querySelector('#access-gate'), archiveError=document.querySelector('#access-error'), accessForm=document.querySelector('#access-form');
     function archivePassword(){if(transientAccessPassword)return transientAccessPassword;try{const expiry=Number(localStorage.getItem(ARCHIVE_EXPIRY_KEY)||0);if(!expiry||expiry<Date.now()){localStorage.removeItem(ARCHIVE_ACCESS_KEY);localStorage.removeItem(ARCHIVE_EXPIRY_KEY);return '';}return localStorage.getItem(ARCHIVE_ACCESS_KEY)||'';}catch{return '';}}
     function showAccessGate(message=''){archiveGate.hidden=false;archiveError.textContent=message;document.querySelector('#access-password').focus();}
-    window.unlock=function(event){event.preventDefault();const password=document.querySelector('#access-password').value;if(!password)return;transientAccessPassword=password;try{localStorage.setItem(ARCHIVE_ACCESS_KEY,password);localStorage.setItem(ARCHIVE_EXPIRY_KEY,String(Date.now()+7*24*60*60*1000));}catch{}archiveGate.hidden=true;archiveError.textContent='';};
+    function unlock(event){event.preventDefault();const password=document.querySelector('#access-password').value;if(!password)return;transientAccessPassword=password;try{localStorage.setItem(ARCHIVE_ACCESS_KEY,password);localStorage.setItem(ARCHIVE_EXPIRY_KEY,String(Date.now()+7*24*60*60*1000));}catch{}archiveGate.hidden=true;archiveError.textContent='';}
+    accessForm.addEventListener('submit',unlock);
     async function archiveFetch(path,options={}){const headers=new Headers(options.headers||{}),password=archivePassword();if(password)headers.set('X-Access-Password',password);const response=await fetch(`${ARCHIVE_API_BASE}${path}`,{...options,headers});if(response.status===401){showAccessGate('密码无效或已过期。');throw new Error('Access password required');}return response;}
     if(archivePassword())archiveGate.hidden=true;else showAccessGate();
     window.upload=async function(){const data=new FormData();for(const file of document.querySelector('#files').files)data.append('files',file);if(!data.has('files')){statusLine.textContent='请选择至少一份资料。';return;}statusLine.textContent='正在上传资料...';const response=await archiveFetch('/documents',{method:'POST',body:data});const result=await response.json();batch=result.batch_id;statusLine.textContent=`已上传 ${result.documents.length} 份资料。`;await window.refresh();};

@@ -190,3 +190,10 @@ def test_index_keeps_access_password_in_memory_when_browser_storage_is_unavailab
     assert response.status_code == 200
     assert "let transientAccessPassword=''" in response.text
     assert "try{localStorage.setItem" in response.text
+
+
+def test_index_binds_access_gate_with_a_dom_submit_listener(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "accessForm.addEventListener('submit',unlock)" in response.text

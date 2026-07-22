@@ -182,3 +182,11 @@ def test_index_includes_the_shared_access_gate(client: TestClient) -> None:
     assert response.status_code == 200
     assert 'id="access-gate"' in response.text
     assert "X-Access-Password" in response.text
+
+
+def test_index_keeps_access_password_in_memory_when_browser_storage_is_unavailable(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "let transientAccessPassword=''" in response.text
+    assert "try{localStorage.setItem" in response.text

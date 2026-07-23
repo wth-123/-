@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>资料整理 Agent</title>
+  <style>
+    :root { --paper:#f2f3ef; --ink:#183b3a; --archive:#fff; --vermilion:#c55438; --line:#cbd2cc; --muted:#64736f; --green:#4f7a61; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:14px/1.45 "Noto Sans SC","Microsoft YaHei",sans-serif; }
+    button,input,select,textarea { font:inherit; } button { cursor:pointer; }
+    button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:3px solid #e5a18e; outline-offset:2px; }
+    .workbench { max-width:1480px; margin:0 auto; padding:24px clamp(16px,3vw,48px) 48px; }
+    .masthead { display:flex; align-items:end; justify-content:space-between; gap:24px; border-bottom:2px solid var(--ink); padding-bottom:16px; }
+    .kicker { display:block; color:var(--vermilion); font:700 11px/1.1 Consolas,monospace; letter-spacing:.08em; }
+    h1 { margin:6px 0 0; font:700 clamp(28px,3vw,44px)/1.1 Georgia,"Noto Serif SC",serif; letter-spacing:0; }
+    .export-action,.primary-action,.secondary-action,.save-action { min-height:36px; padding:7px 12px; border:1px solid var(--ink); border-radius:3px; font-weight:700; }
+    .export-action,.primary-action { background:var(--ink); color:#fff; } .secondary-action,.save-action { background:var(--archive); color:var(--ink); }
+    .operations { display:grid; grid-template-columns:auto auto auto 1fr; align-items:center; gap:8px 12px; padding:16px 0; border-bottom:1px solid var(--line); }
+    .upload-control { position:relative; display:inline-flex; align-items:center; min-height:36px; padding:7px 11px; border:1px dashed var(--ink); border-radius:3px; background:var(--archive); font-weight:700; }
+    .upload-control input { position:absolute; inset:0; width:100%; opacity:0; cursor:pointer; }
+    #status { margin:0; color:var(--muted); text-align:right; font:12px/1.3 Consolas,monospace; }
+    .batch-strip { display:flex; gap:1px; margin:16px 0; border:1px solid var(--line); background:var(--line); }
+    .metric { flex:1; min-width:0; padding:10px 14px; background:var(--archive); } .metric b { display:block; font:700 20px/1 Consolas,monospace; } .metric span { color:var(--muted); font-size:12px; }
+    .review-surface { overflow:auto; border:1px solid var(--line); background:var(--archive); }
+    table { width:100%; min-width:980px; border-collapse:collapse; } th { position:sticky; top:0; z-index:1; padding:10px 12px; color:var(--muted); background:#e7ebe5; border-bottom:1px solid var(--line); text-align:left; font:700 11px/1.1 Consolas,monospace; letter-spacing:.04em; }
+    td { padding:10px 12px; border-bottom:1px solid #e3e7e1; vertical-align:top; } .document-row { border-left:5px solid var(--ink); } .document-row[data-review="confirmed"] { border-left-color:var(--green); } .document-row[data-review="reprocess"],.document-row[data-status="failed"] { border-left-color:var(--vermilion); }
+    .file-name { display:block; font:700 13px/1.25 Consolas,monospace; word-break:break-word; } .file-meta,.archive-tag { display:block; margin-top:5px; color:var(--muted); font:11px/1.2 Consolas,monospace; text-transform:uppercase; } .archive-tag { font-weight:700; letter-spacing:.05em; }
+    .review-field { width:100%; padding:6px 7px; border:1px solid #aeb8b1; border-radius:2px; background:#fbfcfa; color:var(--ink); } textarea.review-field { min-height:58px; resize:vertical; } .confidence { color:var(--muted); font-family:Consolas,monospace; white-space:nowrap; }
+    .empty-row td { padding:48px 20px; color:var(--muted); text-align:center; } .inline-note { min-height:14px; margin-top:5px; color:var(--green); font-size:11px; }
+    @media (max-width:760px) { .workbench { padding:18px 12px 32px; } .masthead { align-items:start; flex-direction:column; gap:14px; } .operations { grid-template-columns:1fr 1fr; } .upload-control,#status { grid-column:1/-1; } #status { text-align:left; } .batch-strip { display:grid; grid-template-columns:1fr 1fr; } .metric:last-child { grid-column:1/-1; } .review-surface { overflow:visible; border:0; background:transparent; } table,tbody,tr,td { display:block; min-width:0; } thead { display:none; } .document-row { margin:12px 0; border:1px solid var(--line); border-left:5px solid var(--ink); background:var(--archive); } .document-row[data-review="confirmed"] { border-left-color:var(--green); } .document-row[data-review="reprocess"],.document-row[data-status="failed"] { border-left-color:var(--vermilion); } td { padding:8px 12px; border:0; } td::before { content:attr(data-label); display:block; margin-bottom:4px; color:var(--muted); font:700 10px/1 Consolas,monospace; letter-spacing:.05em; } td[data-label="文件"]::before,td[data-label="操作"]::before { display:none; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
+  </style>
+  <style>
+    .access-gate { position:fixed; inset:0; z-index:10; display:grid; place-items:center; padding:20px; background:rgba(24,59,58,.78); }
+    #access-gate[hidden] { display:none; }
+    .access-card { width:min(420px,100%); padding:28px; border:1px solid #b9c4bc; background:var(--archive); box-shadow:0 16px 42px rgba(0,0,0,.22); }
+    .access-card h2 { margin:0 0 8px; font:700 28px/1.15 Georgia,"Noto Serif SC",serif; }
+    .access-card p { color:var(--muted); }.access-card label { display:block; margin:18px 0 8px; font-weight:700; }
+    .access-card input { width:100%; min-height:42px; padding:8px 10px; border:1px solid #aeb8b1; border-radius:2px; }.access-card input[aria-invalid="true"] { border-color:var(--vermilion); box-shadow:0 0 0 2px rgba(197,84,56,.14); }.access-card button { width:100%; margin-top:14px; }.access-card button:disabled { cursor:wait; opacity:.72; }.access-feedback { min-height:20px; margin:10px 0 0; color:var(--muted); font-size:12px; }.access-feedback::before { display:inline-block; width:7px; height:7px; margin:0 7px 1px 0; border-radius:50%; background:currentColor; content:""; }.access-card[data-state="pending"] .access-feedback::before { animation:access-pulse .9s ease-in-out infinite; }.access-feedback[data-tone="success"] { color:var(--green); }.access-feedback[data-tone="error"] { color:var(--vermilion); } @keyframes access-pulse { 50% { opacity:.28; transform:scale(.7); } }
+    @media (prefers-reduced-motion:reduce) { .access-card[data-state="pending"] .access-feedback::before { animation:none; } }
+  </style>
+</head>
+<body>
+  <main class="workbench" data-ui="archive-workbench">
+    <header class="masthead"><div><span class="kicker">LOCAL ARCHIVE / REVIEW</span><h1>资料整理 Agent</h1></div><button class="export-action" type="button" onclick="download()">导出已确认</button></header>
+    <section class="operations" aria-label="批次操作"><label class="upload-control">选择资料<input id="files" type="file" multiple accept=".pdf,.docx,.xlsx,.xlsm,.csv"></label><button class="primary-action" type="button" onclick="upload()">上传资料</button><button class="secondary-action" type="button" onclick="processBatch()">处理待办</button><p id="status" role="status">上传资料后开始审核。</p></section>
+    <section class="batch-strip" aria-label="批次进度"><div class="metric"><b id="processed-count">0</b><span>已处理</span></div><div class="metric"><b id="pending-count">0</b><span>待审核</span></div><div class="metric"><b id="failed-count">0</b><span>失败</span></div></section>
+    <section class="review-surface" aria-label="审核队列"><table><thead><tr><th>文件档案</th><th>分类</th><th>摘要</th><th>置信度</th><th>审核状态</th><th>人工备注</th><th>操作</th></tr></thead><tbody id="rows"><tr class="empty-row"><td colspan="7">上传 PDF、Word、Excel 或 CSV 后开始审核。</td></tr></tbody></table></section>
+  </main>
+  <script>
+    let batch;
+    const statusLine=document.querySelector('#status'), rows=document.querySelector('#rows');
+    const escapeHtml=(value='')=>String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    const setMetric=(id,value)=>document.querySelector(id).textContent=value||0;
+    async function upload(){const data=new FormData();for(const file of document.querySelector('#files').files)data.append('files',file);if(!data.has('files')){statusLine.textContent='请选择至少一份资料。';return;}statusLine.textContent='正在上传资料...';const response=await fetch('/documents',{method:'POST',body:data});const result=await response.json();batch=result.batch_id;statusLine.textContent=result.errors?.length?`已上传 ${result.documents.length} 份，${result.errors.length} 份未接受。`:`已上传 ${result.documents.length} 份资料。`;await refresh();}
+    async function processBatch(){if(!batch){statusLine.textContent='请先上传资料。';return;}statusLine.textContent='正在处理待办资料...';await fetch(`/batches/${batch}/process`,{method:'POST'});await refresh();}
+    function documentRow(item){const review=item.review_status||'pending', state=item.status||'uploaded';return `<tr class="document-row" data-review="${escapeHtml(review)}" data-status="${escapeHtml(state)}"><td data-label="文件"><span class="file-name">${escapeHtml(item.filename)}</span><span class="file-meta">${escapeHtml(item.document_type||'未处理')} / ${escapeHtml(state)}</span><span class="archive-tag">${escapeHtml(review)}</span></td><td data-label="分类"><input class="review-field" value="${escapeHtml(item.classification)}" id="c-${item.id}"></td><td data-label="摘要"><textarea class="review-field" id="s-${item.id}">${escapeHtml(item.summary)}</textarea></td><td data-label="置信度"><span class="confidence">${Number(item.confidence||0).toFixed(2)}</span></td><td data-label="审核状态"><select class="review-field" id="r-${item.id}"><option value="pending">待审核</option><option value="confirmed">已确认</option><option value="reprocess">需重处理</option></select></td><td data-label="人工备注"><textarea class="review-field" id="n-${item.id}">${escapeHtml(item.reviewer_notes)}</textarea></td><td data-label="操作"><button class="save-action" type="button" onclick="save('${item.id}')">保存审核</button><div class="inline-note" id="m-${item.id}"></div></td></tr>`;}
+    async function refresh(){if(!batch)return;const response=await fetch(`/batches/${batch}`),result=await response.json();setMetric('#processed-count',result.progress.processed);setMetric('#failed-count',result.progress.failed);setMetric('#pending-count',result.documents.filter(item=>item.review_status==='pending').length);statusLine.textContent=`批次 ${result.id.slice(0,8)}：已处理 ${result.progress.processed}，失败 ${result.progress.failed}。`;rows.innerHTML=result.documents.length?result.documents.map(documentRow).join(''):'<tr class="empty-row"><td colspan="7">上传资料后开始审核。</td></tr>';result.documents.forEach(item=>{const field=document.querySelector(`#r-${item.id}`);if(field)field.value=item.review_status||'pending';});}
+    async function save(id){const payload={classification:document.querySelector(`#c-${id}`).value,summary:document.querySelector(`#s-${id}`).value,review_status:document.querySelector(`#r-${id}`).value,reviewer_notes:document.querySelector(`#n-${id}`).value};await fetch(`/documents/${id}/review`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await refresh();}
+    function download(){if(batch)window.location=`/batches/${batch}/export`;else statusLine.textContent='请先上传资料。';}
+  </script>
+  <section id="access-gate" class="access-gate" aria-label="访问验证">
+    <form id="access-form" class="access-card">
+      <span class="kicker">PRIVATE ARCHIVE</span><h2>输入访问密码</h2><p>密码仅保存在当前浏览器中，7 天后自动失效。</p>
+      <label for="access-password">共享访问密码</label><input id="access-password" type="password" autocomplete="current-password" aria-describedby="access-feedback" required>
+      <button id="access-submit" class="primary-action" type="submit">进入审核台</button><p id="access-feedback" class="access-feedback" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+  <script src="/config.js"></script>
+  <script>
+    const ARCHIVE_API_BASE=(window.API_BASE||'').replace(/\/$/,'');
+    const ARCHIVE_ACCESS_KEY='archiveAccessPassword', ARCHIVE_EXPIRY_KEY='archiveAccessPasswordExpiry';
+    const archiveGate=document.querySelector('#access-gate'), accessForm=document.querySelector('#access-form'), accessPassword=document.querySelector('#access-password'), accessSubmit=document.querySelector('#access-submit'), accessFeedback=document.querySelector('#access-feedback');
+    let transientAccessPassword='';
+    function clearAccessPassword(){transientAccessPassword='';try{localStorage.removeItem(ARCHIVE_ACCESS_KEY);localStorage.removeItem(ARCHIVE_EXPIRY_KEY);}catch{}}
+    function archivePassword(){try{const expiry=Number(localStorage.getItem(ARCHIVE_EXPIRY_KEY)||0);if(!expiry||expiry<Date.now()){clearAccessPassword();return '';}return localStorage.getItem(ARCHIVE_ACCESS_KEY)||transientAccessPassword;}catch{return transientAccessPassword;}}
+    function persistAccessPassword(password){transientAccessPassword=password;try{localStorage.setItem(ARCHIVE_ACCESS_KEY,password);localStorage.setItem(ARCHIVE_EXPIRY_KEY,String(Date.now()+7*24*60*60*1000));}catch{}}
+    function setAccessState(state,message='',tone=''){accessForm.dataset.state=state;accessSubmit.disabled=state==='pending';accessSubmit.textContent=state==='pending'?'正在验证…':'进入审核台';accessPassword.setAttribute('aria-invalid',tone==='error'?'true':'false');accessFeedback.textContent=message;accessFeedback.dataset.tone=tone;}
+    function showAccessGate(message='',tone=''){archiveGate.hidden=false;setAccessState(tone==='error'?'error':'idle',message,tone);if(tone==='error')accessPassword.focus();}
+    function enterWorkbench(){setAccessState('success','登录成功，正在进入审核台','success');window.setTimeout(()=>{archiveGate.hidden=true;},420);}
+    async function verifyAccess(password){return fetch(`${ARCHIVE_API_BASE}/access/verify`,{headers:{'X-Access-Password':password}});}
+    async function unlock(event){event.preventDefault();const password=accessPassword.value;if(!password){showAccessGate('请输入访问密码','error');return;}setAccessState('pending','正在核验访问权限');try{const response=await verifyAccess(password);if(response.status===401){showAccessGate('密码不正确，请重新输入','error');return;}if(!response.ok){showAccessGate('暂时无法验证，请稍后重试','error');return;}persistAccessPassword(password);enterWorkbench();}catch{showAccessGate('暂时无法验证，请稍后重试','error');}}
+    accessForm.addEventListener("submit", unlock);
+    async function restoreAccess(){const password=archivePassword();if(!password){showAccessGate();return;}setAccessState('pending','正在恢复访问权限');try{const response=await verifyAccess(password);if(response.ok){enterWorkbench();return;}clearAccessPassword();showAccessGate('密码已失效，请重新输入','error');}catch{showAccessGate('暂时无法验证，请稍后重试','error');}}
+    restoreAccess();
+    async function archiveFetch(path,options={}){const headers=new Headers(options.headers||{}),password=archivePassword();if(password)headers.set('X-Access-Password',password);const response=await fetch(`${ARCHIVE_API_BASE}${path}`,{...options,headers});if(response.status===401){clearAccessPassword();showAccessGate('密码无效或已过期。','error');throw new Error('Access password required');}return response;}
+    window.upload=async function(){const data=new FormData();for(const file of document.querySelector('#files').files)data.append('files',file);if(!data.has('files')){statusLine.textContent='请选择至少一份资料。';return;}statusLine.textContent='正在上传资料...';const response=await archiveFetch('/documents',{method:'POST',body:data});const result=await response.json();batch=result.batch_id;statusLine.textContent=`已上传 ${result.documents.length} 份资料。`;await window.refresh();};
+    window.processBatch=async function(){if(!batch){statusLine.textContent='请先上传资料。';return;}statusLine.textContent='正在处理待办资料...';await archiveFetch(`/batches/${batch}/process`,{method:'POST'});await window.refresh();};
+    window.refresh=async function(){if(!batch)return;const response=await archiveFetch(`/batches/${batch}`),result=await response.json();setMetric('#processed-count',result.progress.processed);setMetric('#failed-count',result.progress.failed);setMetric('#pending-count',result.documents.filter(item=>item.review_status==='pending').length);statusLine.textContent=`批次 ${result.id.slice(0,8)}：已处理 ${result.progress.processed}，失败 ${result.progress.failed}。`;rows.innerHTML=result.documents.length?result.documents.map(documentRow).join(''):'<tr class="empty-row"><td colspan="7">上传资料后开始审核。</td></tr>';result.documents.forEach(item=>{const field=document.querySelector(`#r-${item.id}`);if(field)field.value=item.review_status||'pending';});};
+    window.save=async function(id){const payload={classification:document.querySelector(`#c-${id}`).value,summary:document.querySelector(`#s-${id}`).value,review_status:document.querySelector(`#r-${id}`).value,reviewer_notes:document.querySelector(`#n-${id}`).value};await archiveFetch(`/documents/${id}/review`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await window.refresh();};
+    window.download=async function(){if(!batch){statusLine.textContent='请先上传资料。';return;}const response=await archiveFetch(`/batches/${batch}/export`),url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download='confirmed-documents.xlsx';link.click();URL.revokeObjectURL(url);};
+  </script>
+</body>
+</html>

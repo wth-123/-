@@ -177,6 +177,17 @@ def test_api_rejects_requests_without_the_shared_password() -> None:
     assert response.json()["detail"] == "Access password required"
 
 
+def test_access_verify_accepts_only_the_shared_password(client: TestClient) -> None:
+    accepted = client.get("/access/verify")
+
+    assert accepted.status_code == 204
+
+    with TestClient(app) as unauthenticated_client:
+        rejected = unauthenticated_client.get("/access/verify")
+
+    assert rejected.status_code == 401
+
+
 def test_index_includes_the_shared_access_gate(client: TestClient) -> None:
     response = client.get("/")
 

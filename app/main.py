@@ -81,6 +81,11 @@ def _progress(batch: BatchRecord) -> dict[str, int]:
     return counts
 
 
+@app.get("/access/verify", status_code=204)
+def verify_access(_: None = Depends(require_shared_password)) -> None:
+    """Confirm a shared password without exposing any application data."""
+
+
 @app.post("/documents")
 async def upload_documents(
     files: list[UploadFile] = File(...),

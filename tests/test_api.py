@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -184,6 +185,17 @@ def test_index_includes_the_shared_access_gate(client: TestClient) -> None:
     assert "X-Access-Password" in response.text
 
 
+def test_access_gate_loads_the_external_browser_script(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert '<script src="/config.js"></script>' in response.text
+    assert '<script src="/app.js"></script>' in response.text
+    script = (Path(__file__).parents[1] / "app" / "templates" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    assert "form.addEventListener('submit', unlock)" in script
+
+
 def test_index_keeps_access_password_in_memory_when_browser_storage_is_unavailable(client: TestClient) -> None:
     response = client.get("/")
 
@@ -196,4 +208,7 @@ def test_index_binds_access_gate_with_a_dom_submit_listener(client: TestClient) 
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "accessForm.addEventListener('submit',unlock)" in response.text
+    script = (Path(__file__).parents[1] / "app" / "templates" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    assert "form.addEventListener('submit', unlock)" in script

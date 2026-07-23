@@ -33,10 +33,12 @@
   </style>
   <style>
     .access-gate { position:fixed; inset:0; z-index:10; display:grid; place-items:center; padding:20px; background:rgba(24,59,58,.78); }
+    #access-gate[hidden] { display:none; }
     .access-card { width:min(420px,100%); padding:28px; border:1px solid #b9c4bc; background:var(--archive); box-shadow:0 16px 42px rgba(0,0,0,.22); }
     .access-card h2 { margin:0 0 8px; font:700 28px/1.15 Georgia,"Noto Serif SC",serif; }
     .access-card p { color:var(--muted); }.access-card label { display:block; margin:18px 0 8px; font-weight:700; }
-    .access-card input { width:100%; min-height:42px; padding:8px 10px; border:1px solid #aeb8b1; border-radius:2px; }.access-card button { width:100%; margin-top:14px; }.access-error { min-height:18px; margin:10px 0 0; color:var(--vermilion); font-size:12px; }
+    .access-card input { width:100%; min-height:42px; padding:8px 10px; border:1px solid #aeb8b1; border-radius:2px; }.access-card input[aria-invalid="true"] { border-color:var(--vermilion); box-shadow:0 0 0 2px rgba(197,84,56,.14); }.access-card button { width:100%; margin-top:14px; }.access-card button:disabled { cursor:wait; opacity:.72; }.access-feedback { min-height:20px; margin:10px 0 0; color:var(--muted); font-size:12px; }.access-feedback::before { display:inline-block; width:7px; height:7px; margin:0 7px 1px 0; border-radius:50%; background:currentColor; content:""; }.access-card[data-state="pending"] .access-feedback::before { animation:access-pulse .9s ease-in-out infinite; }.access-feedback[data-tone="success"] { color:var(--green); }.access-feedback[data-tone="error"] { color:var(--vermilion); } @keyframes access-pulse { 50% { opacity:.28; transform:scale(.7); } }
+    @media (prefers-reduced-motion:reduce) { .access-card[data-state="pending"] .access-feedback::before { animation:none; } }
   </style>
 </head>
 <body>
@@ -46,7 +48,8 @@
     <section class="batch-strip" aria-label="批次进度"><div class="metric"><b id="processed-count">0</b><span>已处理</span></div><div class="metric"><b id="pending-count">0</b><span>待审核</span></div><div class="metric"><b id="failed-count">0</b><span>失败</span></div></section>
     <section class="review-surface" aria-label="审核队列"><table><thead><tr><th>文件档案</th><th>分类</th><th>摘要</th><th>置信度</th><th>审核状态</th><th>人工备注</th><th>操作</th></tr></thead><tbody id="rows"><tr class="empty-row"><td colspan="7">上传 PDF、Word、Excel 或 CSV 后开始审核。</td></tr></tbody></table></section>
   </main>
-  <script>
+  <!-- Deprecated script kept for reference; it is superseded by the access-aware script below. -->
+  <!-- <script>
     let batch;
     const statusLine=document.querySelector('#status'), rows=document.querySelector('#rows');
     const escapeHtml=(value='')=>String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -57,30 +60,39 @@
     async function refresh(){if(!batch)return;const response=await fetch(`/batches/${batch}`),result=await response.json();setMetric('#processed-count',result.progress.processed);setMetric('#failed-count',result.progress.failed);setMetric('#pending-count',result.documents.filter(item=>item.review_status==='pending').length);statusLine.textContent=`批次 ${result.id.slice(0,8)}：已处理 ${result.progress.processed}，失败 ${result.progress.failed}。`;rows.innerHTML=result.documents.length?result.documents.map(documentRow).join(''):'<tr class="empty-row"><td colspan="7">上传资料后开始审核。</td></tr>';result.documents.forEach(item=>{const field=document.querySelector(`#r-${item.id}`);if(field)field.value=item.review_status||'pending';});}
     async function save(id){const payload={classification:document.querySelector(`#c-${id}`).value,summary:document.querySelector(`#s-${id}`).value,review_status:document.querySelector(`#r-${id}`).value,reviewer_notes:document.querySelector(`#n-${id}`).value};await fetch(`/documents/${id}/review`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await refresh();}
     function download(){if(batch)window.location=`/batches/${batch}/export`;else statusLine.textContent='请先上传资料。';}
-  </script>
+  </script> -->
   <section id="access-gate" class="access-gate" aria-label="访问验证">
     <form id="access-form" class="access-card">
       <span class="kicker">PRIVATE ARCHIVE</span><h2>输入访问密码</h2><p>密码仅保存在当前浏览器中，7 天后自动失效。</p>
-      <label for="access-password">共享访问密码</label><input id="access-password" type="password" autocomplete="current-password" required>
-      <button class="primary-action" type="submit">进入审核台</button><p id="access-error" class="access-error" role="alert"></p>
+      <label for="access-password">共享访问密码</label><input id="access-password" type="password" autocomplete="current-password" aria-describedby="access-feedback" required>
+      <button id="access-submit" class="primary-action" type="submit">进入审核台</button><p id="access-feedback" class="access-feedback" role="status" aria-live="polite"></p>
     </form>
   </section>
   <script src="/config.js"></script>
-  <script>
+  <!-- Legacy inline script is disabled because its source encoding is corrupt. -->
+  <!-- <script>
     const ARCHIVE_API_BASE=(window.API_BASE||'').replace(/\/$/,'');
-    const ARCHIVE_ACCESS_KEY='archiveAccessPassword', ARCHIVE_EXPIRY_KEY='archiveAccessPasswordExpiry';let transientAccessPassword='';
-    const archiveGate=document.querySelector('#access-gate'), archiveError=document.querySelector('#access-error'), accessForm=document.querySelector('#access-form');
-    function archivePassword(){if(transientAccessPassword)return transientAccessPassword;try{const expiry=Number(localStorage.getItem(ARCHIVE_EXPIRY_KEY)||0);if(!expiry||expiry<Date.now()){localStorage.removeItem(ARCHIVE_ACCESS_KEY);localStorage.removeItem(ARCHIVE_EXPIRY_KEY);return '';}return localStorage.getItem(ARCHIVE_ACCESS_KEY)||'';}catch{return '';}}
-    function showAccessGate(message=''){archiveGate.hidden=false;archiveError.textContent=message;document.querySelector('#access-password').focus();}
-    function unlock(event){event.preventDefault();const password=document.querySelector('#access-password').value;if(!password)return;transientAccessPassword=password;try{localStorage.setItem(ARCHIVE_ACCESS_KEY,password);localStorage.setItem(ARCHIVE_EXPIRY_KEY,String(Date.now()+7*24*60*60*1000));}catch{}archiveGate.hidden=true;archiveError.textContent='';}
-    accessForm.addEventListener('submit',unlock);
-    async function archiveFetch(path,options={}){const headers=new Headers(options.headers||{}),password=archivePassword();if(password)headers.set('X-Access-Password',password);const response=await fetch(`${ARCHIVE_API_BASE}${path}`,{...options,headers});if(response.status===401){showAccessGate('密码无效或已过期。');throw new Error('Access password required');}return response;}
-    if(archivePassword())archiveGate.hidden=true;else showAccessGate();
+    const ARCHIVE_ACCESS_KEY='archiveAccessPassword', ARCHIVE_EXPIRY_KEY='archiveAccessPasswordExpiry';
+    const archiveGate=document.querySelector('#access-gate'), accessForm=document.querySelector('#access-form'), accessPassword=document.querySelector('#access-password'), accessSubmit=document.querySelector('#access-submit'), accessFeedback=document.querySelector('#access-feedback');
+    let transientAccessPassword='';
+    function clearAccessPassword(){transientAccessPassword='';try{localStorage.removeItem(ARCHIVE_ACCESS_KEY);localStorage.removeItem(ARCHIVE_EXPIRY_KEY);}catch{}}
+    function archivePassword(){try{const expiry=Number(localStorage.getItem(ARCHIVE_EXPIRY_KEY)||0);if(!expiry||expiry<Date.now()){clearAccessPassword();return '';}return localStorage.getItem(ARCHIVE_ACCESS_KEY)||transientAccessPassword;}catch{return transientAccessPassword;}}
+    function persistAccessPassword(password){transientAccessPassword=password;try{localStorage.setItem(ARCHIVE_ACCESS_KEY,password);localStorage.setItem(ARCHIVE_EXPIRY_KEY,String(Date.now()+7*24*60*60*1000));}catch{}}
+    function setAccessState(state,message='',tone=''){accessForm.dataset.state=state;accessSubmit.disabled=state==='pending';accessSubmit.textContent=state==='pending'?'正在验证…':'进入审核台';accessPassword.setAttribute('aria-invalid',tone==='error'?'true':'false');accessFeedback.textContent=message;accessFeedback.dataset.tone=tone;}
+    function showAccessGate(message='',tone=''){archiveGate.hidden=false;setAccessState(tone==='error'?'error':'idle',message,tone);if(tone==='error')accessPassword.focus();}
+    function enterWorkbench(){setAccessState('success','登录成功，正在进入审核台','success');window.setTimeout(()=>{archiveGate.hidden=true;},420);}
+    async function verifyAccess(password){if(!ARCHIVE_API_BASE)throw new Error('API endpoint is not configured');return fetch(`${ARCHIVE_API_BASE}/access/verify`,{headers:{'X-Access-Password':password}});}
+    async function unlock(event){event.preventDefault();const password=accessPassword.value;if(!password){showAccessGate('请输入访问密码','error');return;}setAccessState('pending','正在核验访问权限');try{const response=await verifyAccess(password);if(response.status===401){showAccessGate('密码不正确，请重新输入','error');return;}if(!response.ok){showAccessGate('暂时无法验证，请稍后重试','error');return;}persistAccessPassword(password);enterWorkbench();}catch{showAccessGate('暂时无法验证，请稍后重试','error');}}
+    accessForm.addEventListener("submit", unlock);
+    async function restoreAccess(){const password=archivePassword();if(!password){showAccessGate();return;}setAccessState('pending','正在恢复访问权限');try{const response=await verifyAccess(password);if(response.ok){enterWorkbench();return;}clearAccessPassword();showAccessGate('密码已失效，请重新输入','error');}catch{showAccessGate('暂时无法验证，请稍后重试','error');}}
+    restoreAccess();
+    async function archiveFetch(path,options={}){const headers=new Headers(options.headers||{}),password=archivePassword();if(password)headers.set('X-Access-Password',password);const response=await fetch(`${ARCHIVE_API_BASE}${path}`,{...options,headers});if(response.status===401){clearAccessPassword();showAccessGate('密码无效或已过期。','error');throw new Error('Access password required');}return response;}
     window.upload=async function(){const data=new FormData();for(const file of document.querySelector('#files').files)data.append('files',file);if(!data.has('files')){statusLine.textContent='请选择至少一份资料。';return;}statusLine.textContent='正在上传资料...';const response=await archiveFetch('/documents',{method:'POST',body:data});const result=await response.json();batch=result.batch_id;statusLine.textContent=`已上传 ${result.documents.length} 份资料。`;await window.refresh();};
     window.processBatch=async function(){if(!batch){statusLine.textContent='请先上传资料。';return;}statusLine.textContent='正在处理待办资料...';await archiveFetch(`/batches/${batch}/process`,{method:'POST'});await window.refresh();};
     window.refresh=async function(){if(!batch)return;const response=await archiveFetch(`/batches/${batch}`),result=await response.json();setMetric('#processed-count',result.progress.processed);setMetric('#failed-count',result.progress.failed);setMetric('#pending-count',result.documents.filter(item=>item.review_status==='pending').length);statusLine.textContent=`批次 ${result.id.slice(0,8)}：已处理 ${result.progress.processed}，失败 ${result.progress.failed}。`;rows.innerHTML=result.documents.length?result.documents.map(documentRow).join(''):'<tr class="empty-row"><td colspan="7">上传资料后开始审核。</td></tr>';result.documents.forEach(item=>{const field=document.querySelector(`#r-${item.id}`);if(field)field.value=item.review_status||'pending';});};
     window.save=async function(id){const payload={classification:document.querySelector(`#c-${id}`).value,summary:document.querySelector(`#s-${id}`).value,review_status:document.querySelector(`#r-${id}`).value,reviewer_notes:document.querySelector(`#n-${id}`).value};await archiveFetch(`/documents/${id}/review`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await window.refresh();};
     window.download=async function(){if(!batch){statusLine.textContent='请先上传资料。';return;}const response=await archiveFetch(`/batches/${batch}/export`),url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download='confirmed-documents.xlsx';link.click();URL.revokeObjectURL(url);};
-  </script>
+  </script> -->
+  <script src="/app.js"></script>
 </body>
 </html>
